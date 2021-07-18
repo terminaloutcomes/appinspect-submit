@@ -4,6 +4,10 @@ A simple CLI for submitting your Splunk app package to AppInspect and getting th
 
 Eventually I'll get around to making something to parse the reports - currently it'll just dump the raw JSON to the local directory.
 
+# Installation
+
+`pip install appinspect-submit`
+
 # Usage
 
 `appinspect-submit [OPTIONS] FILENAME`
