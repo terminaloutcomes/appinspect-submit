@@ -41,7 +41,8 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
         self.test_future = test_future
         self.token = ""
         self.request_id = ""
-        self.urls = {}
+        self.urls: dict = {}
+        self.report_filename = ""
 
         ProgressStep = namedtuple("ProgressStep", ["name", "step"])
         steps = [
@@ -51,11 +52,13 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
                 name="Waiting for the report to finish...", step=self.do_wait_for_status
             ),
             ProgressStep(name="Grabbing the report...", step=self.do_pull_report),
-            # ProgressStep(name=f"Uploaded, wrote submission logfile to {self.logfile}",step=lambda: True),
+            ProgressStep(
+                name="Done, wrote report  to {self.report_filename}", step=lambda: True
+            ),
         ]
         logger.debug(steps[0].name)
         self.progress_bar = progressbar(
-            length=len(steps) + 1,
+            length=len(steps) + 3,
             label=f"Running AppInspect on {self.filename[:50]}",
             item_show_func=showfunc,
         )
@@ -66,45 +69,25 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             if not result:
                 logger.error("\nFailed at step {}, quitting", step)
                 sys.exit(1)
-            elif isinstance(result, str):
-                logger.info(result)
+        print(f"Complete! Report filename: {self.report_filename}")
 
-
-
-    def do_login(
-        self, current_step: int, username: str = "", password: str = ""
-    ) -> bool:
+    def do_login(self, current_step: int) -> bool:
         """ does the login thing """
         logger.debug("Current step: {}", current_step)
-        if username.strip() != "":
-            self.username = username
-        if password.strip() != "":
-            self.password = password
 
         logger.info("Trying to log in...")
-        try:
-            response = requests.get(LOGINURL, auth=(self.username, self.password))
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as error_message:
-            logger.error(error_message)
-            return False
-
-        try:
-            responsedata = response.json()
-            logger.debug(response.content)
-        except json.JSONDecodeError:
-            logger.error(
-                "Failed to JSON-encode the response, bailing: {}", response.content
-            )
+        responsedata = self.do_get_json(LOGINURL, auth=(self.username, self.password))
+        if not responsedata:
+            logger.error("Failed to login, bailing")
             return False
 
         if responsedata.get("status") != "success":
-            logger.error("Failed to login, bailing: {}", response.content)
+            logger.error("Failed to login, bailing: {}", json.dumps(responsedata))
             return False
 
         self.token = responsedata.get("data", {}).get("token")
         if not self.token:
-            logger.error("Failed to get token from this: {}", response.content)
+            logger.error("Failed to get token from this: {}", json.dumps(responsedata))
             return False
 
         logger.debug("Successfully grabbed token: {}", self.token)
@@ -121,12 +104,12 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
 
     get_auth_header = lambda self: {"Authorization": f"Bearer {self.token}"}
 
-    def do_get_json(self, url: str, headers: dict = False) -> dict:
+    def do_get_json(self, url: str, headers: dict = None, auth: tuple = ()) -> dict:
         """ does a standard get request and returns a dict from the JSON """
         if not headers:
             headers = self.get_auth_header()
         try:
-            response = requests.get(url=url, headers=headers)
+            response = requests.get(url=url, headers=headers, auth=auth)
             response.raise_for_status()
 
         except requests.exceptions.HTTPError as error_message:
@@ -235,8 +218,10 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             time.sleep(LOOP_WAIT_TIME)
             status_url = f"{APPINSPECT_BASE_URL}{self.urls.get('status')}"
 
-            runtime = round(time.time() - start_time,1)
-            logger.debug("Still waiting for the report to finish... has been {} seconds", runtime)
+            runtime = round(time.time() - start_time, 1)
+            logger.debug(
+                "Still waiting for the report to finish... has been {} seconds", runtime
+            )
 
             responsedata = self.do_get_json(status_url)
             if not responsedata:
@@ -258,9 +243,7 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
         report = self.do_get_json(report_url)
         if not report:
             return False
-        report_filename = datetime.now().strftime("%Y%m%d-%H%M%S-report.json")
-        with open(
-            report_filename, "w"
-        ) as report_filehandle:
+        self.report_filename = datetime.now().strftime("%Y%m%d-%H%M%S-report.json")
+        with open(self.report_filename, "w") as report_filehandle:
             json.dump(report, report_filehandle, indent=4)
-        return report_filename
+        return True

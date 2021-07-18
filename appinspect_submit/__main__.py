@@ -15,6 +15,7 @@ from loguru import logger
 
 from . import AppInspectCLI
 
+
 @click.command()
 @click.argument(
     "filename",
@@ -22,22 +23,29 @@ from . import AppInspectCLI
         exists=True, dir_okay=False, readable=True, resolve_path=True, allow_dash=False
     ),
 )
-@click.option("--username", type=str, prompt="Splunk.com Username", help="Username on Splunk.com")
+@click.option(
+    "--username", type=str, prompt="Splunk.com Username", help="Username on Splunk.com"
+)
 @click.option(
     "--test-future", is_flag=True, default=False, help="Use the 'future' tests"
 )
 @click.password_option(
-    "--password", prompt="Splunk.com Password", confirmation_prompt=False,
+    "--password",
+    prompt="Splunk.com Password",
+    confirmation_prompt=False,
     help="Password for account on Splunk.com",
 )
 @click.option(
-    "--log", default="INFO", type=click.Choice(["DEBUG", "INFO", "ERROR", "WARNING"],
-    # help="Set the log level in the log file",
-    )
+    "--log",
+    default="INFO",
+    type=click.Choice(
+        ["DEBUG", "INFO", "ERROR", "WARNING"],
+        # help="Set the log level in the log file",
+    ),
 )
 def cli(username: str, password: str, filename: str, test_future: bool, log: str):
-    """ Uploads your Splunk app package to the AppInspect service and
-downloads the report. Report filename will look like "%Y%m%d-%H%M%S-report.json """
+    """Uploads your Splunk app package to the AppInspect service and
+    downloads the report. Report filename will look like "%Y%m%d-%H%M%S-report.json"""
     if not os.path.exists(filename):
         logger.error("Failed to find file {}, bailing", filename)
         return False
