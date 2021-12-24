@@ -53,7 +53,7 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             ),
             ProgressStep(name="Grabbing the report...", step=self.do_pull_report),
             ProgressStep(
-                name="Done, wrote report  to {self.report_filename}", step=lambda: True
+                name=f"Done, wrote report  to {self.report_filename}", step=lambda x: True
             ),
         ]
         logger.debug(steps[0].name)
@@ -145,8 +145,9 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
         with open(self.filename, "rb") as upload_file_handle:
             files = {"app_package": upload_file_handle}
             data = {}
+            data["included_tags"] = ["cloud"]
             if self.test_future:
-                data["included_tags"] = "future"
+                data["included_tags"].append("future")
 
             try:
                 logger.debug("Uploading file...")
