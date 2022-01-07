@@ -224,13 +224,14 @@ def report(filename: str, ignore_result: tuple, hide_empty_groups:bool):
             if len(checks_without_skipped) == 0:
                 print("All checks in this group have been ignored.")
 
+            print("="*20)
             for check in checks_without_skipped:
+                print("="*20)
                 result = check.get("result")
                 print(f"Result: {COLOUR.get(result, COLOUR.get('default'))}{result}{COLOUR.get('end')}")
                 description = check.get('description').replace('\n', ' ')
                 print(f"Check: {description}")
                 # {result}")
-                print("="*20)
 
                 # print(check.keys())
                 messages = check.get("messages")
