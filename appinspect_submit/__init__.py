@@ -22,19 +22,19 @@ LOOP_WAIT_TIME = 5
 
 
 def showfunc(item):
-    """ because lambdas are hard """
+    """because lambdas are hard"""
     if item:
         return item.name
     return ""
 
 
 class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
-    """ Does AppInspect Things """
+    """Does AppInspect Things"""
 
     def __init__(
         self, username: str, password: str, filename: str, test_future: bool
     ) -> None:
-        """ does the startup thing """
+        """does the startup thing"""
         self.username = username
         self.password = password
         self.filename = filename
@@ -44,37 +44,8 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
         self.urls: dict = {}
         self.report_filename = ""
 
-        ProgressStep = namedtuple("ProgressStep", ["name", "step"])
-        steps = [
-            ProgressStep(name="Logging in...", step=self.do_login),
-            ProgressStep(name="Uploading file...", step=self.do_submission),
-            ProgressStep(
-                name="Waiting for the report to finish...", step=self.do_wait_for_status
-            ),
-            ProgressStep(name="Grabbing the report...", step=self.do_pull_report),
-            ProgressStep(
-                name=f"Done, wrote report  to {self.report_filename}", step=lambda x: True
-            ),
-        ]
-        logger.debug(steps[0].name)
-        self.progress_bar = progressbar(
-            length=len(steps) + 3,
-            label=f"Running AppInspect on {self.filename[:50]}",
-            item_show_func=showfunc,
-        )
-
-        for i, step in enumerate(steps):
-            self.progress_bar.update(i + 1, step)
-            result = step.step(i + 1)
-            if not result:
-                logger.error("\nFailed at step {}, quitting", step)
-                sys.exit(1)
-        print(f"Complete! Report filename: {self.report_filename}")
-
-    def do_login(self, current_step: int) -> bool:
-        """ does the login thing """
-        logger.debug("Current step: {}", current_step)
-
+    def do_login(self) -> bool:
+        """does the login thing"""
         logger.info("Trying to log in...")
         responsedata = self.do_get_json(LOGINURL, auth=(self.username, self.password))
         if not responsedata:
@@ -105,7 +76,7 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
     get_auth_header = lambda self: {"Authorization": f"Bearer {self.token}"}
 
     def do_get_json(self, url: str, headers: dict = None, auth: tuple = ()) -> dict:
-        """ does a standard get request and returns a dict from the JSON """
+        """does a standard get request and returns a dict from the JSON"""
         if not headers:
             headers = self.get_auth_header()
         try:
@@ -128,9 +99,8 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             return {}
         return responsedata
 
-    def do_submission(self, current_step) -> bool:
-        """ does the appinspect upload part """
-        logger.debug("Current step: {}", current_step)
+    def do_submission(self) -> bool:
+        """does the appinspect upload part"""
 
         #     curl -X POST -H "Authorization: bearer auth_token_here" \
         # -F  "app_package=@app_name_here.tar.gz" \
@@ -210,9 +180,10 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
         logger.debug("Validate upload response: {}", response.json())
         return True
 
-    def do_wait_for_status(self, current_step: int) -> bool:
-        """ waits for the thing to finish... """
-        logger.debug("Current step: {}", current_step)
+    def do_wait_for_status(
+        self,
+    ) -> bool:
+        """waits for the thing to finish..."""
 
         start_time = time.time()
         while True:
@@ -237,11 +208,11 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
                 logger.debug(json.dumps(responsedata))
                 return True
 
-    def do_pull_report(self, current_step: int) -> bool:
-        """ waits for the thing to finish... """
-        logger.debug("Current step: {}", current_step)
+    def do_pull_report(
+        self,
+    ) -> bool:
+        """waits for the thing to finish..."""
         report_url = f"{APPINSPECT_BASE_URL}{self.urls.get('report')}"
-
         report = self.do_get_json(report_url)
         if not report:
             return False

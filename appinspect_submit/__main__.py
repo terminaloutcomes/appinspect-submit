@@ -6,13 +6,11 @@
 
 """
 
-from datetime import datetime
 import json
 from json.decoder import JSONDecodeError
 import os.path
 from pathlib import Path
 import sys
-from uuid import uuid4
 
 import click
 from loguru import logger
@@ -21,36 +19,38 @@ from . import AppInspectCLI
 
 # https://gist.github.com/rene-d/9e584a7dd2935d0f461904b9f2950007
 COLOUR = {
-    "success" : '\033[92m',
-    "failure" : '\033[91m',
-    "error" : '\033[91m',
-    "skipped" : '\033[95m',
-    "manual_check" : '\033[93m',
-    "warning" : '\033[93m',
-    "not_applicable" : '\033[95m',
-    "default" : '\033[95m',
-    "end" : '\033[0m',
-    "white" : '\033[1;37m',
+    "success": "\033[92m",
+    "failure": "\033[91m",
+    "error": "\033[91m",
+    "skipped": "\033[95m",
+    "manual_check": "\033[93m",
+    "warning": "\033[93m",
+    "not_applicable": "\033[95m",
+    "default": "\033[95m",
+    "end": "\033[0m",
+    "white": "\033[1;37m",
 }
-CONFIG_FILENAME="~/.config/appinspect-submit.json"
+CONFIG_FILENAME = "~/.config/appinspect-submit.json"
 
 REPORT_SUMMARY_KEYS = [
-    'app_name',
-    'app_description',
-    'app_package_id',
-    'app_version',
-    'app_author',
-    'app_hash',
+    "app_name",
+    "app_description",
+    "app_package_id",
+    "app_version",
+    "app_author",
+    "app_hash",
 ]
 
-class NotRequiredIf(click.Option):
-    """ Does multi-value checks"""
-    def __init__(self, *args, **kwargs):
-        self.not_required_if = kwargs.pop('not_required_if')
-        assert self.not_required_if, "'not_required_if' parameter required"
-        kwargs['help'] = (kwargs.get('help', '') +
-            f" NOTE: This argument is mutually exclusive with {self.not_required_if}"
 
+class NotRequiredIf(click.Option):
+    """Does multi-value checks"""
+
+    def __init__(self, *args, **kwargs):
+        self.not_required_if = kwargs.pop("not_required_if")
+        assert self.not_required_if, "'not_required_if' parameter required"
+        kwargs["help"] = (
+            kwargs.get("help", "")
+            + f" NOTE: This argument is mutually exclusive with {self.not_required_if}"
         ).strip()
         super().__init__(*args, **kwargs)
 
@@ -62,16 +62,16 @@ class NotRequiredIf(click.Option):
             if we_are_present:
                 raise click.UsageError(
                     f"Illegal usage: `{self.name}` is mutually exclusive with `{self.not_required_if}`"
-                    )
+                )
             self.prompt = None
 
-        return super().handle_parse_result(
-            ctx, opts, args)
+        return super().handle_parse_result(ctx, opts, args)
 
-def print_underline(input_string: str, underline:str="-", max_length=120):
+
+def print_underline(input_string: str, underline: str = "-", max_length=120):
     """prints a line of <underline> as long as max_length or <len(input_string)>"""
-    output_length=min(max_length, len(input_string))
-    print(str(underline)*output_length)
+    output_length = min(max_length, len(input_string))
+    print(str(underline) * output_length)
 
 
 @click.group()
@@ -79,7 +79,7 @@ def cli():
     """Uploads your Splunk app package to the AppInspect service and
     downloads the report. Report filename will look like "%Y%m%d-%H%M%S-report.json
 
-    Configuration file: ~/.config/appinspect-submit.json can have username/password fields
+    Configuration file: ~/.config/appinspect-submit.json needs to have username/password fields
     to automate submission.
     """
 
@@ -90,39 +90,12 @@ def cli():
         exists=True, dir_okay=False, readable=True, resolve_path=True, allow_dash=False
     ),
 )
-
-@click.option(
-    "--log",
-    default="INFO",
-    type=click.Choice(
-        ["DEBUG", "INFO", "ERROR", "WARNING"],
-        # help="Set the log level in the log file",
-    ),
-)
-@click.option(
-    "--username", type=str,
-    # prompt="Splunk.com Username",
-    help="Username on Splunk.com"
-)
 @click.option(
     "--test-future", is_flag=True, default=False, help="Use the 'future' tests"
 )
-# @click.option(
-#     "--use-config",
-#     is_flag=True,
-#     help="Take username and password from ~/.config/appinspect-submit.json"
-# )
-# @click.password_option(
-#     "--password",
-#     prompt="Splunk.com Password",
-#     confirmation_prompt=False,
-#     help="Password for account on Splunk.com",
-#     cls=NotRequiredIf,
-#     not_required_if='use_config'
-# )
 @cli.command()
-def upload(username: str, filename: str, test_future: bool, log: str):
-    """ upload the app for testing"""
+def upload(filename: str, test_future: bool):
+    """upload the app for testing"""
 
     print("Loading config", file=sys.stderr)
     configfile = Path(os.path.expanduser(CONFIG_FILENAME))
@@ -135,47 +108,62 @@ def upload(username: str, filename: str, test_future: bool, log: str):
         print(f"Error decoding config: {json_error}", file=sys.stderr)
         sys.exit(1)
     if not "username" in config and "password" in config:
-        print("Ensure config file has username and password, quitting.", file=sys.stderr)
+        print(
+            "Ensure config file has username and password, quitting.", file=sys.stderr
+        )
         sys.exit(1)
-    username=config["username"]
-    password=config["password"]
+    username = config["username"]
+    password = config["password"]
 
     if not os.path.exists(filename):
         logger.error("Failed to find file {}, bailing", filename)
         return False
-    # remove the existing logger and update it
-    session = uuid4()
-    logfile_name = datetime.now().strftime("%Y%m%d-%H%M%S-appinspect.log")
-    with open(logfile_name, "w", encoding="utf8") as logfile_handle:
-        logger.info("Logging to file: {}", logfile_name)
-        logger.remove()
-        logger.add(
-            sink=logfile_handle,
-            level=log,
-            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> session="
-            + str(session)
-            + ' level=<level>{level}</level> func=<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> message="<level>{message}</level>"',
-        )
 
-        AppInspectCLI(username, password, filename, test_future)
+    appinspect = AppInspectCLI(username, password, filename, test_future)
+
+    logger.info("Logging in...")
+    appinspect.do_login()
+    logger.info("Uploading file...")
+    appinspect.do_submission()
+
+    logger.info("Waiting for the report to finish...")
+    appinspect.do_wait_for_status()
+    logger.info("Grabbing the report...")
+
+    appinspect.do_pull_report()
+    logger.info("Done, wrote report  to {}", appinspect.report_filename)
+
+    logger.info("Complete! Report filename: {}", appinspect.report_filename)
     return True
 
+
 def print_num_reports(report_count: int) -> None:
-    """ prettyprint numbers """
-    if report_count== 1:
+    """prettyprint numbers"""
+    if report_count == 1:
         print("There is 1 report.\n")
     else:
         print(f"There are {report_count} reports.\n")
 
+
 @click.argument("filename", type=click.File())
-@click.option("--ignore-result", "-I", multiple=True, help="Ignore a result (eg success) - specify can multiple times for different values.")
-@click.option("--hide-empty-groups", "-e", is_flag=True, help="If all check groups are empty, don't show them")
+@click.option(
+    "--ignore-result",
+    "-I",
+    multiple=True,
+    help="Ignore a result (eg success) - specify can multiple times for different values.",
+)
+@click.option(
+    "--hide-empty-groups",
+    "-e",
+    is_flag=True,
+    help="If all check groups are empty, don't show them",
+)
 @cli.command()
-def report(filename, ignore_result: tuple, hide_empty_groups:bool):
+def report(filename, ignore_result: tuple, hide_empty_groups: bool):
     """Parse a report and do a simple output"""
     # if not os.path.exists(filename):
-        # logger.error("Failed to find file {}, bailing", filename)
-        # return False
+    # logger.error("Failed to find file {}, bailing", filename)
+    # return False
 
     if ignore_result:
         print(f"Ignoring the following result values: {', '.join(ignore_result)}")
@@ -188,10 +176,12 @@ def report(filename, ignore_result: tuple, hide_empty_groups:bool):
     print("Report Summary")
     print_underline("Report Summary", underline="=")
     for key in report_data["summary"]:
-        print(f"{COLOUR.get(key, COLOUR['default'])}{report_data['summary'][key]}{COLOUR['end']}\t{key}")
+        print(
+            f"{COLOUR.get(key, COLOUR['default'])}{report_data['summary'][key]}{COLOUR['end']}\t{key}"
+        )
     print("\n")
 
-    print_num_reports(len(report_data.get('reports')))
+    print_num_reports(len(report_data.get("reports")))
 
     for report_index, element in enumerate(report_data.get("reports")):
         print(f"Report #:\t{COLOUR['white']}{report_index+1}{COLOUR['end']}")
@@ -202,23 +192,31 @@ def report(filename, ignore_result: tuple, hide_empty_groups:bool):
         print("")
         for group_index, group in enumerate(element.get("groups")):
             # check if all the items in this group have been skipped
-            checks_without_skipped = [ check for check in group.get("checks") if check.get("result") not in ignore_result]
+            checks_without_skipped = [
+                check
+                for check in group.get("checks")
+                if check.get("result") not in ignore_result
+            ]
 
             if hide_empty_groups and len(checks_without_skipped) == 0:
                 continue
 
-            print(f"\n{COLOUR['warning']}Check Group #{group_index+1} - {group.get('description')}{COLOUR['end']}")
+            print(
+                f"\n{COLOUR['warning']}Check Group #{group_index+1} - {group.get('description')}{COLOUR['end']}"
+            )
             print_underline(group.get("description"))
 
             if len(checks_without_skipped) == 0:
                 print("All checks in this group have been ignored.")
 
-            print("="*20)
+            print("=" * 20)
             for check in checks_without_skipped:
-                print("="*20)
+                print("=" * 20)
                 result = check.get("result")
-                print(f"Result: {COLOUR.get(result, COLOUR.get('default'))}{result}{COLOUR.get('end')}")
-                description = check.get('description').replace('\n', ' ')
+                print(
+                    f"Result: {COLOUR.get(result, COLOUR.get('default'))}{result}{COLOUR.get('end')}"
+                )
+                description = check.get("description").replace("\n", " ")
                 print(f"Check: {description}")
                 # {result}")
 
@@ -230,6 +228,7 @@ def report(filename, ignore_result: tuple, hide_empty_groups:bool):
                         print(f"Filename: {message.get('filename')}")
 
     print("Done!")
+
 
 if __name__ == "__main__":
     cli()  # pylint: disable=no-value-for-parameter
