@@ -178,7 +178,8 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             responsedata = response.json()
         except json.JSONDecodeError as error_message:
             logger.error(
-                "Failed to parse response as JSON, something's broken. Content on next line:\n{}",
+                "Failed to parse response as JSON, something's broken: {} Content on next line:\n{}",
+                error_message,
                 response.content,
             )
             return False
@@ -245,6 +246,6 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
         if not report:
             return False
         self.report_filename = datetime.now().strftime("%Y%m%d-%H%M%S-report.json")
-        with open(self.report_filename, "w") as report_filehandle:
+        with open(self.report_filename, "w", encoding="utf8") as report_filehandle:
             json.dump(report, report_filehandle, indent=4)
         return True

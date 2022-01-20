@@ -1,0 +1,27 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.poetry]
+name = "appinspect_submit"
+version = "0.0.9"
+description = "does the splunk appinspect thing"
+authors = ["James Hodgkinson <james@terminaloutcomes.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+click = "^8.0.3"
+requests = "^2.27.1"
+loguru = "^0.5.3"
+
+[tool.poetry.dev-dependencies]
+mypy = "^0.931"
+pylint = "^2.12.2"
+pytest = "^6.2.5"
+types-requests = "^2.27.7"
+
+
+[tool.poetry.scripts]
+poetry = 'appinspect_submit.__main__:cli'

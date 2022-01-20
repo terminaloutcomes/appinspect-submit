@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 """ does the splunk appinspect thing
 
@@ -7,9 +7,10 @@
 """
 
 from datetime import datetime
-from json import load as json_load
+import json
 from json.decoder import JSONDecodeError
 import os.path
+from pathlib import Path
 import sys
 from uuid import uuid4
 
@@ -43,14 +44,15 @@ REPORT_SUMMARY_KEYS = [
 ]
 
 class NotRequiredIf(click.Option):
+    """ Does multi-value checks"""
     def __init__(self, *args, **kwargs):
         self.not_required_if = kwargs.pop('not_required_if')
         assert self.not_required_if, "'not_required_if' parameter required"
         kwargs['help'] = (kwargs.get('help', '') +
-            ' NOTE: This argument is mutually exclusive with %s' %
-            self.not_required_if
+            f" NOTE: This argument is mutually exclusive with {self.not_required_if}"
+
         ).strip()
-        super(NotRequiredIf, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def handle_parse_result(self, ctx, opts, args):
         we_are_present = self.name in opts
@@ -59,19 +61,16 @@ class NotRequiredIf(click.Option):
         if other_present:
             if we_are_present:
                 raise click.UsageError(
-                    "Illegal usage: `%s` is mutually exclusive with `%s`" % (
-                        self.name, self.not_required_if))
-            else:
-                self.prompt = None
+                    f"Illegal usage: `{self.name}` is mutually exclusive with `{self.not_required_if}`"
+                    )
+            self.prompt = None
 
-        return super(NotRequiredIf, self).handle_parse_result(
+        return super().handle_parse_result(
             ctx, opts, args)
 
 def print_underline(input_string: str, underline:str="-", max_length=120):
     """prints a line of <underline> as long as max_length or <len(input_string)>"""
-    output_length = len(input_string)
-    if output_length > max_length:
-        output_length = max_length
+    output_length=min(max_length, len(input_string))
     print(str(underline)*output_length)
 
 
@@ -108,52 +107,46 @@ def cli():
 @click.option(
     "--test-future", is_flag=True, default=False, help="Use the 'future' tests"
 )
-@click.option(
-    "--use-config",
-    is_flag=True,
-    help="Take username and password from ~/.config/appinspect-submit.json"
-)
-@click.password_option(
-    "--password",
-    prompt="Splunk.com Password",
-    confirmation_prompt=False,
-    help="Password for account on Splunk.com",
-    cls=NotRequiredIf,
-    not_required_if='use_config'
-)
+# @click.option(
+#     "--use-config",
+#     is_flag=True,
+#     help="Take username and password from ~/.config/appinspect-submit.json"
+# )
+# @click.password_option(
+#     "--password",
+#     prompt="Splunk.com Password",
+#     confirmation_prompt=False,
+#     help="Password for account on Splunk.com",
+#     cls=NotRequiredIf,
+#     not_required_if='use_config'
+# )
 @cli.command()
-def upload(username: str, filename: str, test_future: bool, log: str, **kwargs):
+def upload(username: str, filename: str, test_future: bool, log: str):
     """ upload the app for testing"""
 
-    if kwargs.get("use_config"):
-        print("Loading config", file=sys.stderr)
-        if not os.path.exists(os.path.expanduser(CONFIG_FILENAME)):
-            print(f"Failed to find config file: {CONFIG_FILENAME}", file=sys.stderr)
-            sys.exit(1)
-        with open(os.path.expanduser(CONFIG_FILENAME), 'r', encoding="utf8") as config_fh:
-            try:
-                config = json_load(config_fh)
-            except JSONDecodeError as json_error:
-                print(f"Error decoding config: {json_error}", file=sys.stderr)
-                sys.exit(1)
-            username=config.get("username")
-            password=config.get("password")
-            if not username and password:
-                print("Ensure config file has username and password, quitting.", file=sys.stderr)
-                sys.exit(1)
-
-    elif kwargs.get("password"):
-        password = kwargs.get("password")
-    else:
-        print("Either specify password in config or command line", file=sys.stderr)
+    print("Loading config", file=sys.stderr)
+    configfile = Path(os.path.expanduser(CONFIG_FILENAME))
+    if not configfile.exists():
+        print(f"Failed to find config file: {configfile.as_posix()}", file=sys.stderr)
         sys.exit(1)
+    try:
+        config = json.load(configfile.open(encoding="utf-8"))
+    except JSONDecodeError as json_error:
+        print(f"Error decoding config: {json_error}", file=sys.stderr)
+        sys.exit(1)
+    if not "username" in config and "password" in config:
+        print("Ensure config file has username and password, quitting.", file=sys.stderr)
+        sys.exit(1)
+    username=config["username"]
+    password=config["password"]
+
     if not os.path.exists(filename):
         logger.error("Failed to find file {}, bailing", filename)
         return False
     # remove the existing logger and update it
     session = uuid4()
     logfile_name = datetime.now().strftime("%Y%m%d-%H%M%S-appinspect.log")
-    with open(logfile_name, "w") as logfile_handle:
+    with open(logfile_name, "w", encoding="utf8") as logfile_handle:
         logger.info("Logging to file: {}", logfile_name)
         logger.remove()
         logger.add(
@@ -167,51 +160,47 @@ def upload(username: str, filename: str, test_future: bool, log: str, **kwargs):
         AppInspectCLI(username, password, filename, test_future)
     return True
 
-@click.argument(
-    "filename",
-    type=click.Path(
-        exists=True, dir_okay=False, readable=True, resolve_path=True, allow_dash=False
-    ),
-)
+def print_num_reports(report_count: int) -> None:
+    """ prettyprint numbers """
+    if report_count== 1:
+        print("There is 1 report.\n")
+    else:
+        print(f"There are {report_count} reports.\n")
+
+@click.argument("filename", type=click.File())
 @click.option("--ignore-result", "-I", multiple=True, help="Ignore a result (eg success) - specify can multiple times for different values.")
-@click.option("--hide-empty-groups", is_flag=True, help="If all check groups are empty, don't show them")
+@click.option("--hide-empty-groups", "-e", is_flag=True, help="If all check groups are empty, don't show them")
 @cli.command()
-def report(filename: str, ignore_result: tuple, hide_empty_groups:bool):
-    """{p}arse a report and do a simple output"""
-    if not os.path.exists(filename):
-        logger.error("Failed to find file {}, bailing", filename)
-        return False
+def report(filename, ignore_result: tuple, hide_empty_groups:bool):
+    """Parse a report and do a simple output"""
+    # if not os.path.exists(filename):
+        # logger.error("Failed to find file {}, bailing", filename)
+        # return False
 
     if ignore_result:
         print(f"Ignoring the following result values: {', '.join(ignore_result)}")
 
-    with open(filename, 'r', encoding="utf8") as file_handle:
-        report_data = json_load(file_handle)
+    report_data = json.load(filename)
 
     if "summary" not in report_data:
         raise ValueError("Parsing fail - should include a summary key in data?")
 
-
-    summary = report_data.get("summary")
     print("Report Summary")
     print_underline("Report Summary", underline="=")
-    for key in summary:
-        print(f"{COLOUR.get(key, COLOUR['default'])}{summary[key]}{COLOUR['end']}\t{key}")
+    for key in report_data["summary"]:
+        print(f"{COLOUR.get(key, COLOUR['default'])}{report_data['summary'][key]}{COLOUR['end']}\t{key}")
     print("\n")
 
-    if len(report_data.get('reports')) == 1:
-        print(f"There is 1 report.\n")
-    else:
-        print(f"There are {len(report_data.get('reports'))} reports.\n")
+    print_num_reports(len(report_data.get('reports')))
 
-    for report_index, report in enumerate(report_data.get("reports")):
+    for report_index, element in enumerate(report_data.get("reports")):
         print(f"Report #:\t{COLOUR['white']}{report_index+1}{COLOUR['end']}")
         for key in REPORT_SUMMARY_KEYS:
-            if report.get(key):
-                print(f"{key}\t{COLOUR['white']}{report.get(key)}{COLOUR['end']}")
+            if element.get(key):
+                print(f"{key}\t{COLOUR['white']}{element.get(key)}{COLOUR['end']}")
 
         print("")
-        for group_index, group in enumerate(report.get("groups")):
+        for group_index, group in enumerate(element.get("groups")):
             # check if all the items in this group have been skipped
             checks_without_skipped = [ check for check in group.get("checks") if check.get("result") not in ignore_result]
 
