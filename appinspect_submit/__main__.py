@@ -32,6 +32,7 @@ COLOUR = {
 }
 CONFIG_FILENAME = "~/.config/appinspect-submit.json"
 
+
 REPORT_SUMMARY_KEYS = [
     "app_name",
     "app_description",
@@ -67,6 +68,14 @@ class NotRequiredIf(click.Option):
 
         return super().handle_parse_result(ctx, opts, args)
 
+
+def colourprint(text: str, colour_name: str, end: str="\n"):
+    """ prints text with the required colour """
+    if colour_name not in COLOUR:
+        print(f"Color {colour_name} not in {','.join(COLOUR)}", file=sys.stderr)
+    colour_value = COLOUR.get(colour_name, "default")
+    output = f"{colour_value}{text}{COLOUR['end']}"
+    print(output, end=end)
 
 def print_underline(input_string: str, underline: str = "-", max_length=120):
     """prints a line of <underline> as long as max_length or <len(input_string)>"""
@@ -176,18 +185,17 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
     print("Report Summary")
     print_underline("Report Summary", underline="=")
     for key in report_data["summary"]:
-        print(
-            f"{COLOUR.get(key, COLOUR['default'])}{report_data['summary'][key]}{COLOUR['end']}\t{key}"
-        )
+        colourprint(report_data['summary'][key], "default", end="")
+        print(f"\t{key}")
     print("\n")
 
     print_num_reports(len(report_data.get("reports")))
 
     for report_index, element in enumerate(report_data.get("reports")):
-        print(f"Report #:\t{COLOUR['white']}{report_index+1}{COLOUR['end']}")
+        colourprint(f"Report #:\t{report_index+1}", "white")
         for key in REPORT_SUMMARY_KEYS:
             if element.get(key):
-                print(f"{key}\t{COLOUR['white']}{element.get(key)}{COLOUR['end']}")
+                colourprint(f"{key}\t{element.get(key)}", "white")
 
         print("")
         for group_index, group in enumerate(element.get("groups")):
@@ -201,8 +209,9 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
             if hide_empty_groups and len(checks_without_skipped) == 0:
                 continue
 
-            print(
-                f"\n{COLOUR['warning']}Check Group #{group_index+1} - {group.get('description')}{COLOUR['end']}"
+            colourprint(
+                f"\nCheck Group #{group_index+1} - {group.get('description')}",
+                "warning"
             )
             print_underline(group.get("description"))
 
@@ -213,8 +222,8 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
             for check in checks_without_skipped:
                 print("=" * 20)
                 result = check.get("result")
-                print(
-                    f"Result: {COLOUR.get(result, COLOUR.get('default'))}{result}{COLOUR.get('end')}"
+                colourprint(
+                    f"Result: {result}", result
                 )
                 description = check.get("description").replace("\n", " ")
                 print(f"Check: {description}")
