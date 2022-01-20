@@ -69,13 +69,14 @@ class NotRequiredIf(click.Option):
         return super().handle_parse_result(ctx, opts, args)
 
 
-def colourprint(text: str, colour_name: str, end: str="\n"):
-    """ prints text with the required colour """
+def colourprint(text: str, colour_name: str, end: str = "\n"):
+    """prints text with the required colour"""
     if colour_name not in COLOUR:
         print(f"Color {colour_name} not in {','.join(COLOUR)}", file=sys.stderr)
     colour_value = COLOUR.get(colour_name, "default")
     output = f"{colour_value}{text}{COLOUR['end']}"
     print(output, end=end)
+
 
 def print_underline(input_string: str, underline: str = "-", max_length=120):
     """prints a line of <underline> as long as max_length or <len(input_string)>"""
@@ -185,7 +186,7 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
     print("Report Summary")
     print_underline("Report Summary", underline="=")
     for key in report_data["summary"]:
-        colourprint(report_data['summary'][key], "default", end="")
+        colourprint(report_data["summary"][key], "default", end="")
         print(f"\t{key}")
     print("\n")
 
@@ -211,7 +212,7 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
 
             colourprint(
                 f"\nCheck Group #{group_index+1} - {group.get('description')}",
-                "warning"
+                "warning",
             )
             print_underline(group.get("description"))
 
@@ -222,9 +223,7 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
             for check in checks_without_skipped:
                 print("=" * 20)
                 result = check.get("result")
-                colourprint(
-                    f"Result: {result}", result
-                )
+                colourprint(f"Result: {result}", result)
                 description = check.get("description").replace("\n", " ")
                 print(f"Check: {description}")
                 # {result}")
