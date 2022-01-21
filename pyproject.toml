@@ -5,10 +5,11 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "appinspect-submit"
-version = "0.0.9"
+version = "0.0.10"
 description = "Submits your app to Splunk AppInspect."
 authors = ["James Hodgkinson <james@terminaloutcomes.com>"]
 license = "MIT"
+readme="README.md"
 classifiers=[
     # How mature is this project? Common values are
     #   3 - Alpha
@@ -48,4 +49,4 @@ black = "^21.12b0"
 
 
 [tool.poetry.scripts]
-poetry = 'appinspect_submit.__main__:cli'
+appinspect-submit = 'appinspect_submit.__main__:cli'
