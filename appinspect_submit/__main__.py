@@ -17,6 +17,8 @@ from loguru import logger
 
 from . import AppInspectCLI
 
+logger.configure()
+
 # https://gist.github.com/rene-d/9e584a7dd2935d0f461904b9f2950007
 COLOUR = {
     "success": "\033[92m",
@@ -83,6 +85,13 @@ def print_underline(input_string: str, underline: str = "-", max_length=120):
     output_length = min(max_length, len(input_string))
     print(str(underline) * output_length)
 
+def set_log_level(level: str):
+    """sets the log level"""
+    if level not in ["INFO", "DEBUG"]:
+        print(f"Log level {level} invalid, bailing.")
+        sys.exit(1)
+    logger.remove()
+    logger.add(sys.stderr, level=level)
 
 @click.group()
 def cli():
@@ -93,7 +102,6 @@ def cli():
     to automate submission.
     """
 
-
 @click.argument(
     "filename",
     type=click.Path(
@@ -103,9 +111,14 @@ def cli():
 @click.option(
     "--test-future", is_flag=True, default=False, help="Use the 'future' tests"
 )
+@click.option(
+    "--debug", is_flag=True, default=False, help="Set the logging level to DEBUG"
+)
 @cli.command()
-def upload(filename: str, test_future: bool):
+def upload(filename: str, test_future: bool, debug: bool):
     """upload the app for testing"""
+
+    set_log_level("DEBUG" if debug else "INFO")
 
     print("Loading config", file=sys.stderr)
     configfile = Path(os.path.expanduser(CONFIG_FILENAME))
@@ -131,9 +144,7 @@ def upload(filename: str, test_future: bool):
 
     appinspect = AppInspectCLI(username, password, filename, test_future)
 
-    logger.info("Logging in...")
     appinspect.do_login()
-    logger.info("Uploading file...")
     appinspect.do_submission()
 
     logger.info("Waiting for the report to finish...")
@@ -168,13 +179,19 @@ def print_num_reports(report_count: int) -> None:
     is_flag=True,
     help="If all check groups are empty, don't show them",
 )
+@click.option(
+    "--debug", is_flag=True, default=False, help="Set the logging level to DEBUG"
+)
 @cli.command()
-def report(filename, ignore_result: tuple, hide_empty_groups: bool):
+def report(
+    filename,
+    ignore_result: tuple,
+    hide_empty_groups: bool,
+    debug: bool,
+    ):
     """Parse a report and do a simple output"""
-    # if not os.path.exists(filename):
-    # logger.error("Failed to find file {}, bailing", filename)
-    # return False
 
+    set_log_level("DEBUG" if debug else "INFO")
     if ignore_result:
         print(f"Ignoring the following result values: {', '.join(ignore_result)}")
 
@@ -194,9 +211,8 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
 
     for report_index, element in enumerate(report_data.get("reports")):
         colourprint(f"Report #:\t{report_index+1}", "white")
-        for key in REPORT_SUMMARY_KEYS:
-            if element.get(key):
-                colourprint(f"{key}\t{element.get(key)}", "white")
+        for key in [ key for key in REPORT_SUMMARY_KEYS if element.get(key)]:
+            colourprint(f"{key}\t{element.get(key)}", "white")
 
         print("")
         for group_index, group in enumerate(element.get("groups")):
@@ -229,11 +245,12 @@ def report(filename, ignore_result: tuple, hide_empty_groups: bool):
                 # {result}")
 
                 # print(check.keys())
-                messages = check.get("messages")
-                for message in messages:
+                if not "messages" in check:
+                    continue
+                for message in check["messages"]:
                     print(message.get("message"))
                     if message.get("filename"):
-                        print(f"Filename: {message.get('filename')}")
+                        print(f"Filename: {message['filename']}")
 
     print("Done!")
 

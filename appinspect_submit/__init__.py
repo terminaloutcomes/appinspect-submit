@@ -101,6 +101,7 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
 
     def do_submission(self) -> bool:
         """does the appinspect upload part"""
+        logger.info("Uploading file...")
 
         #     curl -X POST -H "Authorization: bearer auth_token_here" \
         # -F  "app_package=@app_name_here.tar.gz" \
