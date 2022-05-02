@@ -41,7 +41,7 @@ requests = "^2.27.1"
 loguru = ">=0.5.3,<0.7.0"
 
 [tool.poetry.dev-dependencies]
-mypy = "^0.942"
+mypy = "^0.950"
 pylint = "^2.13.7"
 pytest = "^7.1.2"
 types-requests = "^2.27.20"
