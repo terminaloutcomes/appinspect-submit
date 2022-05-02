@@ -44,7 +44,7 @@ loguru = ">=0.5.3,<0.7.0"
 mypy = "^0.950"
 pylint = "^2.13.7"
 pytest = "^7.1.2"
-types-requests = "^2.27.20"
+types-requests = "^2.27.25"
 black = "^22.3"
 
 
