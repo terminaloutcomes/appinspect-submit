@@ -4,16 +4,16 @@
 
 """
 from datetime import datetime
-from collections import namedtuple
+from io import BufferedReader, BytesIO
 import json
 
-import sys
 import time
+from typing import List, Tuple
 import requests
 import requests.exceptions
 
 from loguru import logger
-from click import progressbar
+# from click import progressbar
 
 LOGINURL = "https://api.splunk.com/2.0/rest/login/splunk"
 APPINSPECT_BASE_URL = "https://appinspect.splunk.com"
@@ -32,17 +32,17 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
     """Does AppInspect Things"""
 
     def __init__(
-        self, username: str, password: str, filename: str, test_future: bool
+        self, username: str, password: str, filename: str, tags: List[str]
     ) -> None:
         """does the startup thing"""
         self.username = username
         self.password = password
         self.filename = filename
-        self.test_future = test_future
         self.token = ""
         self.request_id = ""
         self.urls: dict = {}
         self.report_filename = ""
+        self.tags = tags
 
     def do_login(self) -> bool:
         """does the login thing"""
@@ -71,6 +71,7 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             return True
 
         logger.info("Logged in successfully.")
+
         return True
 
     get_auth_header = lambda self: {"Authorization": f"Bearer {self.token}"}
@@ -114,11 +115,14 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
         headers = self.get_auth_header()
 
         with open(self.filename, "rb") as upload_file_handle:
-            files = {"app_package": upload_file_handle}
-            data = {}
-            data["included_tags"] = ["cloud"]
-            if self.test_future:
-                data["included_tags"].append("future")
+            tags = ["cloud"]
+            tags.extend(self.tags)
+            logger.info("Tags: {}", tags)
+            files = {
+                "app_package": upload_file_handle,
+                "included_tags" : (None, ','.join(tags)),
+                "excluded_tags" : (None, ''),
+            }
 
             try:
                 logger.debug("Uploading file...")
@@ -126,7 +130,6 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
                     url=f"{APPINSPECT_BASE_URL}/v1/app/validate",
                     headers=headers,
                     files=files,
-                    data=data,
                 )
                 logger.debug("Done, let's see if it failed...")
                 response.raise_for_status()

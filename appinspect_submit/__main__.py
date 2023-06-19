@@ -11,6 +11,7 @@ from json.decoder import JSONDecodeError
 import os.path
 from pathlib import Path
 import sys
+from typing import Tuple
 
 import click
 from loguru import logger
@@ -112,11 +113,15 @@ def cli():
     "--test-future", is_flag=True, default=False, help="Use the 'future' tests"
 )
 @click.option(
+    "-t", "--tag", multiple=True, help="Additional tags to apply to the appinspect submission - see <https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/#Validate-an-app-using-tags>"
+)
+@click.option(
     "--debug", is_flag=True, default=False, help="Set the logging level to DEBUG"
 )
+@click.option("-r", "--show-report", is_flag=True, default=False, help="Show the report after completion.")
 @cli.command()
-def upload(filename: str, test_future: bool, debug: bool):
-    """upload the app for testing"""
+def upload(filename: str, test_future: bool, debug: bool, tag: Tuple[str] = None, show_report: bool=False):
+    """upload the app for testing, by default the 'cloud' tag is applied."""
 
     set_log_level("DEBUG" if debug else "INFO")
 
@@ -142,19 +147,30 @@ def upload(filename: str, test_future: bool, debug: bool):
         logger.error("Failed to find file {}, bailing", filename)
         return False
 
-    appinspect = AppInspectCLI(username, password, filename, test_future)
+    if tag is None:
+        tags = []
+    else:
+        tags = list(tag)
+    if test_future:
+        tags.append("future")
+
+    appinspect = AppInspectCLI(username, password, filename, tags=tags)
 
     appinspect.do_login()
-    appinspect.do_submission()
+    if not appinspect.do_submission():
+        logger.error("Submission failed, stopping!")
+        return False
 
     logger.info("Waiting for the report to finish...")
     appinspect.do_wait_for_status()
     logger.info("Grabbing the report...")
 
     appinspect.do_pull_report()
-    logger.info("Done, wrote report  to {}", appinspect.report_filename)
 
+    if show_report:
+        output_report(Path(appinspect.report_filename).open("r", encoding='utf-8'), ignore_result=("not_applicable",), hide_empty_groups=True)
     logger.info("Complete! Report filename: {}", appinspect.report_filename)
+
     return True
 
 
@@ -166,32 +182,12 @@ def print_num_reports(report_count: int) -> None:
         print(f"There are {report_count} reports.\n")
 
 
-@click.argument("filename", type=click.File())
-@click.option(
-    "--ignore-result",
-    "-I",
-    multiple=True,
-    help="Ignore a result (eg success) - specify can multiple times for different values.",
-)
-@click.option(
-    "--hide-empty-groups",
-    "-e",
-    is_flag=True,
-    help="If all check groups are empty, don't show them",
-)
-@click.option(
-    "--debug", is_flag=True, default=False, help="Set the logging level to DEBUG"
-)
-@cli.command()
-def report(
+def output_report(
     filename,
-    ignore_result: tuple,
+    ignore_result: Tuple[str],
     hide_empty_groups: bool,
-    debug: bool,
-    ):
-    """Parse a report and do a simple output"""
-
-    set_log_level("DEBUG" if debug else "INFO")
+    ) -> None:
+    """ do the report-printing thing """
     if ignore_result:
         print(f"Ignoring the following result values: {', '.join(ignore_result)}")
 
@@ -213,6 +209,11 @@ def report(
         colourprint(f"Report #:\t{report_index+1}", "white")
         for key in [ key for key in REPORT_SUMMARY_KEYS if element.get(key)]:
             colourprint(f"{key}\t{element.get(key)}", "white")
+
+        colourprint(f"Included tags:\t{','.join(element['run_parameters']['included_tags'])}", 'white')
+        stripped_excluded = [el for el in element['run_parameters']['excluded_tags'] if el.strip() != ""]
+        if stripped_excluded:
+            colourprint(f"Excluded tags:\t{','.join(stripped_excluded)}", 'white')
 
         print("")
         for group_index, group in enumerate(element.get("groups")):
@@ -253,6 +254,34 @@ def report(
                         print(f"Filename: {message['filename']}")
 
     print("Done!")
+
+@click.argument("filename", type=click.File())
+@click.option(
+    "--ignore-result",
+    "-I",
+    multiple=True,
+    help="Ignore a result (eg success) - specify can multiple times for different values.",
+)
+@click.option(
+    "--hide-empty-groups",
+    "-e",
+    is_flag=True,
+    help="If all check groups are empty, don't show them",
+)
+@click.option(
+    "--debug", is_flag=True, default=False, help="Set the logging level to DEBUG"
+)
+@cli.command()
+def report(
+    filename,
+    ignore_result: Tuple[str],
+    hide_empty_groups: bool,
+    debug: bool,
+    ):
+    """Parse a report and do a simple output"""
+
+    set_log_level("DEBUG" if debug else "INFO")
+    output_report(filename, ignore_result, hide_empty_groups)
 
 
 if __name__ == "__main__":
