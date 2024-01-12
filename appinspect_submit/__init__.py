@@ -4,15 +4,16 @@
 
 """
 from datetime import datetime
-from io import BufferedReader, BytesIO
 import json
 
 import time
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import requests
 import requests.exceptions
 
 from loguru import logger
+
 # from click import progressbar
 
 LOGINURL = "https://api.splunk.com/2.0/rest/login/splunk"
@@ -21,33 +22,59 @@ APPINSPECT_BASE_URL = "https://appinspect.splunk.com"
 LOOP_WAIT_TIME = 5
 
 
-def showfunc(item):
-    """because lambdas are hard"""
-    if item:
-        return item.name
-    return ""
+class Config(BaseSettings):
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+    model_config = SettingsConfigDict(env_prefix="APPINSPECT_")
 
 
 class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
     """Does AppInspect Things"""
 
     def __init__(
-        self, username: str, password: str, filename: str, tags: List[str]
+        self,
+        filename: str,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        tags: List[str] = [],
     ) -> None:
         """does the startup thing"""
-        self.username = username
-        self.password = password
+        self.config = Config()
+        if username is not None:
+            self.config.username = username
+
+        if password is not None:
+            self.config.password = password
+
+        if self.config.username is None:
+            logger.error("No username provided, bailing")
+            raise ValueError("No username provided")
+
+        if self.config.password is None:
+            logger.error("No password provided, bailing")
+            raise ValueError("No password provided")
+
         self.filename = filename
         self.token = ""
         self.request_id = ""
-        self.urls: dict = {}
+        self.urls: dict[str, Any] = {}
         self.report_filename = ""
         self.tags = tags
+
+    def __str__(self) -> str:
+        """string repr"""
+        return f'AppInspectCLI(filename="{self.filename}", username="{self.config.username}")'
 
     def do_login(self) -> bool:
         """does the login thing"""
         logger.info("Trying to log in...")
-        responsedata = self.do_get_json(LOGINURL, auth=(self.username, self.password))
+        if self.config.username is None or self.config.password is None:
+            logger.error("No username or password, bailing")
+            return False
+        responsedata = self.do_get_json(
+            LOGINURL, auth=(self.config.username, self.config.password)
+        )
         if not responsedata:
             logger.error("Failed to login, bailing")
             return False
@@ -74,9 +101,21 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
 
         return True
 
-    get_auth_header = lambda self: {"Authorization": f"Bearer {self.token}"}
+    def get_auth_header(self) -> dict[str, str]:
+        """returns the bearer header"""
+        return {"Authorization": f"Bearer {self.token}"}
 
-    def do_get_json(self, url: str, headers: dict = None, auth: tuple = ()) -> dict:
+    def do_get_json(
+        self,
+        url: str,
+        auth: Optional[
+            tuple[
+                str,
+                str,
+            ]
+        ] = None,
+        headers: dict[str, str] = {},
+    ) -> dict[str, Any]:
         """does a standard get request and returns a dict from the JSON"""
         if not headers:
             headers = self.get_auth_header()
@@ -89,13 +128,13 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             logger.error("Response headers: {}", response.headers)
             logger.error("Response content: {}", response.content)
         try:
-            responsedata = response.json()
+            responsedata: dict[str, Any] = response.json()
             logger.debug(response.json())
         except json.JSONDecodeError as error_message:
             logger.error(
                 "Failed to decode response into JSON: error={} content={}",
                 error_message,
-                responsedata.content,
+                response.content,
             )
             return {}
         return responsedata
@@ -118,11 +157,11 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             tags = ["cloud"]
             tags.extend(self.tags)
             logger.info("Tags: {}", tags)
-            files = {
+            files: Dict[str, Any] = {
                 "app_package": upload_file_handle,
-                "included_tags" : (None, ','.join(tags)),
-                "excluded_tags" : (None, ''),
             }
+            if tags:
+                files["included_tags"] = (None, ",".join(tags))
 
             try:
                 logger.debug("Uploading file...")
@@ -181,7 +220,10 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             )
             return False
 
-        logger.debug("Validate upload response: {}", response.json())
+        jsondata = response.json()
+        logger.debug("Validate upload response: {}", jsondata)
+        if "warning" in jsondata:
+            logger.warning("Warning: {}", jsondata.get("warning"))
         return True
 
     def do_wait_for_status(
@@ -205,12 +247,20 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
                 return False
 
             if responsedata.get("status") != "PROCESSING":
-                logger.info(
-                    "Response status changed from PROCESSING, is now {} finishing...",
-                    responsedata.get("status"),
-                )
+                # logger.info(
+                #     "Response status changed from PROCESSING, is now {} finishing...",
+                #     responsedata.get("status"),
+                # )
                 logger.debug(json.dumps(responsedata))
-                return True
+                if responsedata.get("status") == "SUCCESS":
+                    logger.info("Report finished successfully!")
+                    return True
+                else:
+                    logger.error(
+                        "Report finished with non-success value: {}",
+                        responsedata.get("status"),
+                    )
+                    return False
 
     def do_pull_report(
         self,

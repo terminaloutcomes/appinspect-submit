@@ -11,7 +11,7 @@ from json.decoder import JSONDecodeError
 import os.path
 from pathlib import Path
 import sys
-from typing import Tuple
+from typing import Optional, Tuple
 
 import click
 from loguru import logger
@@ -49,7 +49,7 @@ REPORT_SUMMARY_KEYS = [
 class NotRequiredIf(click.Option):
     """Does multi-value checks"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # type: ignore
         self.not_required_if = kwargs.pop("not_required_if")
         assert self.not_required_if, "'not_required_if' parameter required"
         kwargs["help"] = (
@@ -58,7 +58,7 @@ class NotRequiredIf(click.Option):
         ).strip()
         super().__init__(*args, **kwargs)
 
-    def handle_parse_result(self, ctx, opts, args):
+    def handle_parse_result(self, ctx, opts, args):  # type: ignore
         we_are_present = self.name in opts
         other_present = self.not_required_if in opts
 
@@ -72,7 +72,7 @@ class NotRequiredIf(click.Option):
         return super().handle_parse_result(ctx, opts, args)
 
 
-def colourprint(text: str, colour_name: str, end: str = "\n"):
+def colourprint(text: str, colour_name: str, end: str = "\n") -> None:
     """prints text with the required colour"""
     if colour_name not in COLOUR:
         print(f"Color {colour_name} not in {','.join(COLOUR)}", file=sys.stderr)
@@ -81,12 +81,15 @@ def colourprint(text: str, colour_name: str, end: str = "\n"):
     print(output, end=end)
 
 
-def print_underline(input_string: str, underline: str = "-", max_length=120):
+def print_underline(
+    input_string: str, underline: str = "-", max_length: int = 120
+) -> None:
     """prints a line of <underline> as long as max_length or <len(input_string)>"""
     output_length = min(max_length, len(input_string))
     print(str(underline) * output_length)
 
-def set_log_level(level: str):
+
+def set_log_level(level: str) -> None:
     """sets the log level"""
     if level not in ["INFO", "DEBUG"]:
         print(f"Log level {level} invalid, bailing.")
@@ -94,14 +97,16 @@ def set_log_level(level: str):
     logger.remove()
     logger.add(sys.stderr, level=level)
 
+
 @click.group()
-def cli():
+def cli() -> None:
     """Uploads your Splunk app package to the AppInspect service and
     downloads the report. Report filename will look like "%Y%m%d-%H%M%S-report.json
 
     Configuration file: ~/.config/appinspect-submit.json needs to have username/password fields
     to automate submission.
     """
+
 
 @click.argument(
     "filename",
@@ -113,39 +118,53 @@ def cli():
     "--test-future", is_flag=True, default=False, help="Use the 'future' tests"
 )
 @click.option(
-    "-t", "--tag", multiple=True, help="Additional tags to apply to the appinspect submission - see <https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/#Validate-an-app-using-tags>"
+    "-t",
+    "--tag",
+    multiple=True,
+    help="Additional tags to apply to the appinspect submission - see <https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/#Validate-an-app-using-tags>",
 )
 @click.option(
     "--debug", is_flag=True, default=False, help="Set the logging level to DEBUG"
 )
-@click.option("-r", "--show-report", is_flag=True, default=False, help="Show the report after completion.")
+@click.option(
+    "-r",
+    "--show-report",
+    is_flag=True,
+    default=False,
+    help="Show the report after completion.",
+)
 @cli.command()
-def upload(filename: str, test_future: bool, debug: bool, tag: Tuple[str] = None, show_report: bool=False):
+def upload(
+    filename: str,
+    test_future: bool,
+    debug: bool,
+    tag: Optional[Tuple[str]] = None,
+    show_report: bool = False,
+) -> bool:
     """upload the app for testing, by default the 'cloud' tag is applied."""
 
     set_log_level("DEBUG" if debug else "INFO")
 
-    print("Loading config", file=sys.stderr)
-    configfile = Path(os.path.expanduser(CONFIG_FILENAME))
-    if not configfile.exists():
-        print(f"Failed to find config file: {configfile.as_posix()}", file=sys.stderr)
-        sys.exit(1)
-    try:
-        config = json.load(configfile.open(encoding="utf-8"))
-    except JSONDecodeError as json_error:
-        print(f"Error decoding config: {json_error}", file=sys.stderr)
-        sys.exit(1)
-    if not "username" in config and "password" in config:
-        print(
-            "Ensure config file has username and password, quitting.", file=sys.stderr
-        )
-        sys.exit(1)
-    username = config["username"]
-    password = config["password"]
-
     if not os.path.exists(filename):
         logger.error("Failed to find file {}, bailing", filename)
         return False
+
+    print("Loading config", file=sys.stderr)
+    configfile = Path(os.path.expanduser(CONFIG_FILENAME))
+
+    username = None
+    password = None
+    if configfile.exists():
+        try:
+            config = json.load(configfile.open(encoding="utf-8"))
+        except JSONDecodeError as json_error:
+            print(f"Error decoding config: {json_error}", file=sys.stderr)
+            sys.exit(1)
+
+        username = config.get("username")
+        password = config.get("password")
+    else:
+        logger.debug("Didn't find config file at {}", configfile)
 
     if tag is None:
         tags = []
@@ -154,7 +173,9 @@ def upload(filename: str, test_future: bool, debug: bool, tag: Tuple[str] = None
     if test_future:
         tags.append("future")
 
-    appinspect = AppInspectCLI(username, password, filename, tags=tags)
+    appinspect = AppInspectCLI(
+        filename=filename, username=username, password=password, tags=tags
+    )
 
     appinspect.do_login()
     if not appinspect.do_submission():
@@ -168,7 +189,11 @@ def upload(filename: str, test_future: bool, debug: bool, tag: Tuple[str] = None
     appinspect.do_pull_report()
 
     if show_report:
-        output_report(Path(appinspect.report_filename).open("r", encoding='utf-8'), ignore_result=("not_applicable",), hide_empty_groups=True)
+        output_report(
+            Path(appinspect.report_filename),
+            ignore_result=("not_applicable",),
+            hide_empty_groups=True,
+        )
     logger.info("Complete! Report filename: {}", appinspect.report_filename)
 
     return True
@@ -183,15 +208,15 @@ def print_num_reports(report_count: int) -> None:
 
 
 def output_report(
-    filename,
+    filename: Path,
     ignore_result: Tuple[str],
     hide_empty_groups: bool,
-    ) -> None:
-    """ do the report-printing thing """
+) -> None:
+    """do the report-printing thing"""
     if ignore_result:
         print(f"Ignoring the following result values: {', '.join(ignore_result)}")
 
-    report_data = json.load(filename)
+    report_data = json.load(filename.open(mode="r", encoding="utf-8"))
 
     if "summary" not in report_data:
         raise ValueError("Parsing fail - should include a summary key in data?")
@@ -207,13 +232,18 @@ def output_report(
 
     for report_index, element in enumerate(report_data.get("reports")):
         colourprint(f"Report #:\t{report_index+1}", "white")
-        for key in [ key for key in REPORT_SUMMARY_KEYS if element.get(key)]:
+        for key in [key for key in REPORT_SUMMARY_KEYS if element.get(key)]:
             colourprint(f"{key}\t{element.get(key)}", "white")
 
-        colourprint(f"Included tags:\t{','.join(element['run_parameters']['included_tags'])}", 'white')
-        stripped_excluded = [el for el in element['run_parameters']['excluded_tags'] if el.strip() != ""]
+        colourprint(
+            f"Included tags:\t{','.join(element['run_parameters']['included_tags'])}",
+            "white",
+        )
+        stripped_excluded = [
+            el for el in element["run_parameters"]["excluded_tags"] if el.strip() != ""
+        ]
         if stripped_excluded:
-            colourprint(f"Excluded tags:\t{','.join(stripped_excluded)}", 'white')
+            colourprint(f"Excluded tags:\t{','.join(stripped_excluded)}", "white")
 
         print("")
         for group_index, group in enumerate(element.get("groups")):
@@ -246,7 +276,7 @@ def output_report(
                 # {result}")
 
                 # print(check.keys())
-                if not "messages" in check:
+                if "messages" not in check:
                     continue
                 for message in check["messages"]:
                     print(message.get("message"))
@@ -255,7 +285,8 @@ def output_report(
 
     print("Done!")
 
-@click.argument("filename", type=click.File())
+
+@click.argument("filename")
 @click.option(
     "--ignore-result",
     "-I",
@@ -273,15 +304,20 @@ def output_report(
 )
 @cli.command()
 def report(
-    filename,
+    filename: str,
     ignore_result: Tuple[str],
     hide_empty_groups: bool,
     debug: bool,
-    ):
+) -> None:
     """Parse a report and do a simple output"""
+    filepath = Path(filename)
+
+    if not filepath.exists():
+        logger.error("Can't find {}", filepath)
+        sys.exit(1)
 
     set_log_level("DEBUG" if debug else "INFO")
-    output_report(filename, ignore_result, hide_empty_groups)
+    output_report(filepath, ignore_result, hide_empty_groups)
 
 
 if __name__ == "__main__":

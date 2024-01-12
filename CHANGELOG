@@ -1,3 +1,11 @@
+# Changelog
 
+## 0.0.10
 
-0.0.10 - fixed the script name because I derped the poetry conversion
+- fixed the script name because I derped the poetry conversion
+
+## 0.1.2 Cleanup day
+
+- adding pydantic settings to the config so one can easily use env vars for uname/password
+- handling some errors and playing nicer with the API fields
+- typing / yak shaving
