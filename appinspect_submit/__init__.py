@@ -3,30 +3,20 @@
     based on the blog article here: https://www.splunk.com/en_us/blog/tips-and-tricks/managing-updates-to-the-splunk-cloud-vetting-process.html
 
 """
+
 from datetime import datetime
 import json
 
 import time
 from typing import Any, Dict, List, Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
 import requests
 import requests.exceptions
 
 from loguru import logger
 
-# from click import progressbar
-
-LOGINURL = "https://api.splunk.com/2.0/rest/login/splunk"
-APPINSPECT_BASE_URL = "https://appinspect.splunk.com"
-
-LOOP_WAIT_TIME = 5
-
-
-class Config(BaseSettings):
-    username: Optional[str] = None
-    password: Optional[str] = None
-
-    model_config = SettingsConfigDict(env_prefix="APPINSPECT_")
+from appinspect_submit.config import Config
+from appinspect_submit.constants import APPINSPECT_BASE_URL, LOGINURL, LOOP_WAIT_TIME
 
 
 class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
@@ -129,7 +119,7 @@ class AppInspectCLI:  # pylint: disable=too-many-instance-attributes
             logger.error("Response content: {}", response.content)
         try:
             responsedata: dict[str, Any] = response.json()
-            logger.debug(response.json())
+            logger.trace(response.json())
         except json.JSONDecodeError as error_message:
             logger.error(
                 "Failed to decode response into JSON: error={} content={}",

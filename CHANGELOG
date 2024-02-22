@@ -9,3 +9,8 @@
 - adding pydantic settings to the config so one can easily use env vars for uname/password
 - handling some errors and playing nicer with the API fields
 - typing / yak shaving
+
+## 0.1.3 Testing
+
+- bumped minimumv Python version to 3.9
+- added mocked and live tests for logging into the API, moved things around a bunch.

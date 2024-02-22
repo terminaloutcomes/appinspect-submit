@@ -7,7 +7,6 @@
 """
 
 import json
-from json.decoder import JSONDecodeError
 import os.path
 from pathlib import Path
 import sys
@@ -17,6 +16,7 @@ import click
 from loguru import logger
 
 from . import AppInspectCLI
+from .config import Config
 
 logger.configure()
 
@@ -33,7 +33,6 @@ COLOUR = {
     "end": "\033[0m",
     "white": "\033[1;37m",
 }
-CONFIG_FILENAME = "~/.config/appinspect-submit.json"
 
 
 REPORT_SUMMARY_KEYS = [
@@ -150,21 +149,13 @@ def upload(
         return False
 
     print("Loading config", file=sys.stderr)
-    configfile = Path(os.path.expanduser(CONFIG_FILENAME))
 
-    username = None
-    password = None
-    if configfile.exists():
-        try:
-            config = json.load(configfile.open(encoding="utf-8"))
-        except JSONDecodeError as json_error:
-            print(f"Error decoding config: {json_error}", file=sys.stderr)
-            sys.exit(1)
-
-        username = config.get("username")
-        password = config.get("password")
-    else:
-        logger.debug("Didn't find config file at {}", configfile)
+    config = Config()
+    if not config.username or not config.password:
+        logger.error(
+            "Username/password not found, please ensure you have a config file in ~/.config/appinspect-submit.json or the APPINSPECT_USERNAME/APPINSPECT_PASSWORD environment variables set!"
+        )
+        sys.exit(1)
 
     if tag is None:
         tags = []
@@ -174,7 +165,7 @@ def upload(
         tags.append("future")
 
     appinspect = AppInspectCLI(
-        filename=filename, username=username, password=password, tags=tags
+        filename=filename, username=config.username, password=config.password, tags=tags
     )
 
     appinspect.do_login()
