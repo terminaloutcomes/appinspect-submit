@@ -14,3 +14,7 @@
 
 - bumped minimumv Python version to 3.9
 - added mocked and live tests for logging into the API, moved things around a bunch.
+
+## 0.1.4 Config fixing
+
+The pydantic_settings model I'd set up for parsing the file-based config didn't work, so I sorted that.

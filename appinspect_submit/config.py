@@ -2,7 +2,7 @@ import json
 import logging
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Type
 
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
@@ -24,7 +24,9 @@ class JsonConfigSettingsSource(PydanticBaseSettingsSource):
         self, field: FieldInfo, field_name: str
     ) -> Tuple[Any, str, bool]:
         try:
-            file_content_json = json.load(Path(CONFIG_FILENAME).open(encoding="utf-8"))
+            file_content_json = json.load(
+                Path(CONFIG_FILENAME).expanduser().open(encoding="utf-8")
+            )
             field_value = file_content_json.get(field_name)
             return field_value, field_name, False
         except Exception as error:
@@ -57,3 +59,19 @@ class Config(BaseSettings):
     password: Optional[str] = None
 
     model_config = SettingsConfigDict(env_prefix="APPINSPECT_")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            JsonConfigSettingsSource(settings_cls),
+            env_settings,
+            file_secret_settings,
+        )
