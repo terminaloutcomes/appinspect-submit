@@ -4,11 +4,22 @@ A simple CLI for submitting your Splunk app package to AppInspect and reading th
 
 ## Installation
 
-`pip install appinspect-submit`
+To install the published CLI with `uv`:
+
+`uv tool install appinspect-submit`
+
+To work on this repository locally:
+
+`uv sync --dev`
+
+Then run the CLI or tests with:
+
+- `uv run appinspect-submit --help`
+- `uv run pytest`
 
 ## Usage
 
-`$ appinspect-submit [OPTIONS] FILENAME`
+`uv run appinspect-submit [OPTIONS] FILENAME`
 
 Uploads your Splunk app package to the AppInspect service and downloads the report. Report filename will look like "%Y%m%d-%H%M%S-report.json
 

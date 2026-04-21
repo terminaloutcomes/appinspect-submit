@@ -1,14 +1,25 @@
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
 
+[tool.pytest.ini_options]
+markers = ["network: uses live network calls (deselect with '-m \"not network\"')"]
 
-[tool.poetry]
+[project]
+authors = [
+    {name = "James Hodgkinson", email = "james@terminaloutcomes.com"},
+]
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.3.2",
+    "loguru>=0.7.3",
+    "pydantic-settings>=2.13.1",
+    "requests>=2.33.1",
+]
 name = "appinspect-submit"
 version = "0.1.4"
 description = "Submits your app to Splunk AppInspect."
-authors = ["James Hodgkinson <james@terminaloutcomes.com>"]
-license = "MIT"
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -16,34 +27,30 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+keywords = [
+    "splunk",
+    "api",
+    "appinspect",
+    "cli",
 ]
 
-keywords = ["splunk", "api", "appinspect", "cli"]
-
-
-documentation = "https://github.com/terminaloutcomes/appinspect-submit/blob/main/README.md"
+[project.urls]
 repository = "https://github.com/terminaloutcomes/appinspect-submit"
+documentation = "https://github.com/terminaloutcomes/appinspect-submit/blob/main/README.md"
 
-[tool.poetry.dependencies]
-python = "^3.9"
-click = "^8.0.3"
-requests = "^2.27.1"
-loguru = ">=0.5.3,<0.8.0"
-pydantic-settings = "^2.1.0"
+[project.scripts]
+appinspect-submit = "appinspect_submit.__main__:cli"
 
-[tool.poetry.scripts]
-appinspect-submit = 'appinspect_submit.__main__:cli'
-
-[tool.poetry.group.dev.dependencies]
-mypy = "^1.8"
-pylint = "^3.0.3"
-pytest = "^8.0.0"
-types-requests = "^2.31.0"
-ruff = ">=0.5.0,<0.16.0"
-
-[tool.pytest.ini_options]
-markers = ["network: uses live network calls (deselect with '-m \"not slow\"')"]
+[dependency-groups]
+dev = [
+    "pylint>=4.0.5",
+    "pytest>=9.0.3",
+    "ruff>=0.15.11",
+    "ty>=0.0.31",
+    "types-requests>=2.33.0.20260408",
+]

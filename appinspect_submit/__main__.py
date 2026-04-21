@@ -48,7 +48,7 @@ REPORT_SUMMARY_KEYS = [
 class NotRequiredIf(click.Option):
     """Does multi-value checks"""
 
-    def __init__(self, *args, **kwargs):  # type: ignore
+    def __init__(self, *args, **kwargs):
         self.not_required_if = kwargs.pop("not_required_if")
         assert self.not_required_if, "'not_required_if' parameter required"
         kwargs["help"] = (
@@ -57,7 +57,7 @@ class NotRequiredIf(click.Option):
         ).strip()
         super().__init__(*args, **kwargs)
 
-    def handle_parse_result(self, ctx, opts, args):  # type: ignore
+    def handle_parse_result(self, ctx, opts, args):
         we_are_present = self.name in opts
         other_present = self.not_required_if in opts
 
